@@ -7,3 +7,5 @@ streamlit
 plotly
 python-dotenv
 pymongo
+fastapi
+uvicorn[standard]
