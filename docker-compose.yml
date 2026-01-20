@@ -1,0 +1,85 @@
+services:
+    minio:
+        image: minio/minio:latest
+        container_name: minio
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        environment:
+            MINIO_ROOT_USER: minioadmin
+            MINIO_ROOT_PASSWORD: minioadmin
+        command: server /data --console-address ":9001"
+        volumes:
+            - minio_data:/data
+        networks:
+            - elt-network
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+            interval: 30s
+            timeout: 20s
+            retries: 3
+
+    minio-setup:
+        image: minio/mc:latest
+        depends_on:
+            - minio
+        networks:
+            - elt-network
+        entrypoint: >
+            /bin/sh -c "
+            sleep 5;
+            /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+            /usr/bin/mc mb myminio/bronze --ignore-existing;
+            /usr/bin/mc mb myminio/silver --ignore-existing;
+            /usr/bin/mc mb myminio/gold --ignore-existing;
+            /usr/bin/mc mb myminio/sources --ignore-existing;
+            exit 0;
+            "
+
+    postgres:
+        image: postgres:17-alpine
+        container_name: prefect-postgres
+        environment:
+            POSTGRES_USER: prefect
+            POSTGRES_PASSWORD: prefect
+            POSTGRES_DB: prefect
+        ports:
+            - "5432:5432"
+        volumes:
+            - prefect_db:/var/lib/postgresql/data
+        networks:
+            - elt-network
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U prefect"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    prefect-server:
+        image: prefecthq/prefect:3-python3.13
+        container_name: prefect-server
+        ports:
+            - "4200:4200"
+        environment:
+            PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@postgres:5432/prefect
+            PREFECT_SERVER_API_HOST: 0.0.0.0
+            PREFECT_API_URL: http://localhost:4200/api
+        command: prefect server start --host 0.0.0.0
+        depends_on:
+            postgres:
+                condition: service_healthy
+        networks:
+            - elt-network
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:4200/api/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+
+volumes:
+    minio_data:
+    prefect_db:
+
+networks:
+    elt-network:
+        driver: bridge
