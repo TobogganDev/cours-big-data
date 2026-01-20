@@ -9,6 +9,8 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 from minio import Minio
+from pymongo import MongoClient
+from pymongo.database import Database
 
 load_dotenv()
 
@@ -30,6 +32,17 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "./data/database/analytics.db")
 
 # Prefect configuration
 PREFECT_API_URL = os.getenv("PREFECT_API_URL", "http://localhost:4200/api")
+
+# MongoDB configuration
+MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
+MONGO_PORT = int(os.getenv("MONGO_PORT", "27017"))
+MONGO_USER = os.getenv("MONGO_USER", "admin")
+MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "admin")
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "analytics")
+MONGO_URI = os.getenv(
+    "MONGO_URI",
+    f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/"
+)
 
 # Buckets
 BUCKET_SOURCES = "sources"
@@ -80,6 +93,17 @@ def get_minio_client() -> Minio:
         secret_key=MINIO_SECRET_KEY,
         secure=MINIO_SECURE
     )
+
+
+def get_mongo_client() -> MongoClient:
+    """Initialize and return a MongoDB client."""
+    return MongoClient(MONGO_URI)
+
+
+def get_mongo_database() -> Database:
+    """Get the MongoDB analytics database."""
+    client = get_mongo_client()
+    return client[MONGO_DATABASE]
 
 
 def ensure_bucket_exists(client: Minio, bucket_name: str) -> None:

@@ -6,3 +6,4 @@ faker
 streamlit
 plotly
 python-dotenv
+pymongo
